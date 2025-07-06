@@ -3,6 +3,8 @@ import fs from "fs-extra";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 
+const nameForImages = "Joe";
+
 async function main() {
   console.log("Welcome to the food pile dataset pipeline");
 
@@ -74,7 +76,7 @@ async function main() {
   // 4. Extract frames
   // --- before extraction: determine the next start number ---
   const files = await fs.readdir(targetDir);
-  const regex = /^frame_(\d+)\.jpg$/;
+  const regex = new RegExp(`^frame${nameForImages}_(\\d+)\\.jpg$`);
   let maxNum = 0;
 
   for (const f of files) {
@@ -94,7 +96,7 @@ async function main() {
   await new Promise((resolve, reject) => {
     ffmpeg(videoFile)
       .outputOptions(["-start_number", startNumber.toString()])
-      .output(path.join(targetDir, "frame_%04d.jpg"))
+      .output(path.join(targetDir, `frame${nameForImages}_%04d.jpg`))
       .fps(1)
       .on("progress", (progress) => {
         process.stdout.write(`\rFrames: ${progress.frames + maxNum}`);
@@ -111,29 +113,38 @@ async function main() {
   });
 
   // --- manifest generation ---
+  // --- manifest generation for only new frames ---
   const manifestPath = path.join(rootDir, "manifest.csv");
   const headerLine = "image_path,interval,subinterval,light\n";
 
-  // 1. Create manifest with header if needed
+  // 1. Ensure manifest exists
   if (!(await fs.pathExists(manifestPath))) {
     await fs.writeFile(manifestPath, headerLine);
   }
 
-  // 2. Read all frames in the light-level folder
-  const frames = await fs.readdir(targetDir);
+  // 2. Read all files now in the target folder
+  const allFiles = await fs.readdir(targetDir);
+
+  // 3. Filter only files whose index > previous maxNum
+  const newFiles = allFiles.filter((f) => {
+    const m = f.match(regex);
+    return m && parseInt(m[1], 10) > maxNum;
+  });
+
+  // 4. Build CSV lines for just those new files
   const relDir = path.relative(rootDir, targetDir).split(path.sep).join("/");
+  const csvLines = newFiles.map((f) => {
+    const imagePath = `${relDir}/${f}`;
+    return `${imagePath},${interval.trim()},${subInterval.trim()},${lightLevel.toLowerCase()}`;
+  });
 
-  // 3. Build CSV lines for each image
-  const csvLines = frames
-    .filter((f) => f.toLowerCase().endsWith(".jpg"))
-    .map((f) => {
-      const imagePath = `${relDir}/${f}`; // e.g. "1-2Interval/1_3Pounds/MediumLight/frame_0001.jpg"
-      return `${imagePath},${interval.trim()},${subInterval.trim()},${lightLevel.toLowerCase()}`;
-    });
-
-  // 4. Append to manifest
-  await fs.appendFile(manifestPath, csvLines.join("\n") + "\n");
-  console.log(`✔ Appended ${csvLines.length} entries to manifest.csv`);
+  // 5. Append them
+  if (csvLines.length) {
+    await fs.appendFile(manifestPath, csvLines.join("\n") + "\n");
+    console.log(`✔ Appended ${csvLines.length} new entries to manifest.csv`);
+  } else {
+    console.log("ℹ️  No new frames to append.");
+  }
 
   console.log("All done!");
 }
