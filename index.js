@@ -72,17 +72,39 @@ async function main() {
   console.log(`✔ Created directory: ${targetDir}`);
 
   // 4. Extract frames
-  console.log(`Extracting frames…`);
+  // --- before extraction: determine the next start number ---
+  const files = await fs.readdir(targetDir);
+  const regex = /^frame_(\d+)\.jpg$/;
+  let maxNum = 0;
+
+  for (const f of files) {
+    const m = f.match(regex);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+
+  const startNumber = maxNum + 1; // if no files, this is 1
+
+  // --- then extract, telling ffmpeg where to start ---
+  console.log(
+    `Extracting frames at 1 fps from ${videoFile} into ${targetDir} (starting at frame_${String(startNumber).padStart(4, "0")}.jpg)...`
+  );
   await new Promise((resolve, reject) => {
     ffmpeg(videoFile)
-      .output(path.join(targetDir, "frameJoe_%04d.jpg"))
-      .fps(2)
+      .outputOptions(["-start_number", startNumber.toString()])
+      .output(path.join(targetDir, "frame_%04d.jpg"))
+      .fps(1)
+      .on("progress", (progress) => {
+        process.stdout.write(`\rFrames: ${progress.frames + maxNum}`);
+      })
       .on("end", () => {
-        console.log("✔ Extraction complete!");
+        console.log("\n✔ Frame extraction complete!");
         resolve();
       })
       .on("error", (err) => {
-        console.error("✖ Extraction error:", err.message);
+        console.error("\n✖ Frame extraction failed:", err.message);
         reject(err);
       })
       .run();
