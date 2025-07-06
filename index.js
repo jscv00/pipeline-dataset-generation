@@ -54,21 +54,21 @@ async function main() {
   ]);
 
   // Prompt for lighting condition
-  const { lightLevel } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "lightLevel",
-      message: "Select lighting condition for this clip:",
-      choices: ["low", "medium", "high"],
-    },
-  ]);
+  // const { lightLevel } = await inquirer.prompt([
+  //   {
+  //     type: "list",
+  //     name: "lightLevel",
+  //     message: "Select lighting condition for this clip:",
+  //     choices: ["low", "medium", "high"],
+  //   },
+  // ]);
 
   // Build and create directories
   const rootDir = "Pile of food dataset";
   const intervalDir = `${interval.trim()}Interval`;
   const subDirName = subInterval.trim().replace(".", "_") + "Pounds";
-  const lightDirName = `${lightLevel.charAt(0).toUpperCase()}${lightLevel.slice(1)}Light`;
-  const targetDir = path.join(rootDir, intervalDir, subDirName, lightDirName);
+  // const lightDirName = `${lightLevel.charAt(0).toUpperCase()}${lightLevel.slice(1)}Light`;
+  const targetDir = path.join(rootDir, intervalDir, subDirName);
 
   await fs.ensureDir(targetDir);
   console.log(`✔ Created directory: ${targetDir}`);
@@ -135,7 +135,7 @@ async function main() {
   const relDir = path.relative(rootDir, targetDir).split(path.sep).join("/");
   const csvLines = newFiles.map((f) => {
     const imagePath = `${relDir}/${f}`;
-    return `${imagePath},${interval.trim()},${subInterval.trim()},${lightLevel.toLowerCase()}`;
+    return `${imagePath},${interval.trim()},${subInterval.trim()}`;
   });
 
   // 5. Append them
